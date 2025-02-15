@@ -1,0 +1,23 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest
+.pytest_cache/
+
+# VSCode
+.vscode/
+.idea/
+
+# Ignore diagnostics folder and all its contents
+diagnostics/
+diagnostics/*
+
+# Additional changes from the code block
+.DS_Store
