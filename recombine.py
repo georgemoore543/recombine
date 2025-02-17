@@ -154,6 +154,7 @@ def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, forced_type=None, re
     - Maintains the same type/framing as the first prompt
     - Combines themes and elements from both prompts
     - Matches the linguistic style and structure of the inputs
+    - Do NOT include prefixes like "Problem Statement:", "Insight:", or "Solution:"
     - Returns ONLY the new generated text without any analysis or explanation
     """
     
@@ -164,6 +165,7 @@ def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, forced_type=None, re
         - MUST be framed strictly as a {forced_type.lower()} like the input prompts
         - Combines themes and elements from both prompts
         - Matches the linguistic style and structure of the inputs
+        - Do NOT include prefixes like "Problem Statement:", "Insight:", or "Solution:"
         - If these are Problem Statements, do NOT include solutions
         - If these are Insights, focus on observations without solutions
         - If these are Solution Proposals, focus on actionable solutions
@@ -175,13 +177,13 @@ def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, forced_type=None, re
     for attempt in range(retries):
         try:
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-3.5-turbo-16k",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Prompt 1: {prompt1}\nPrompt 2: {prompt2}"}
                 ],
                 temperature=0.7,
-                max_tokens=150
+                max_tokens=1000
             )
             return {
                 'text': response.choices[0].message.content.strip(),
