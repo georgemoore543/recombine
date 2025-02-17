@@ -91,13 +91,23 @@ def select_file(title, file_types, save=False):
 def generate_text(prompt1, prompt2, retries=3):
     """Generate new text using OpenAI API by combining two prompts."""
     system_prompt = """
-    Create a new, unique text that combines themes and elements from the two provided prompts.
-    The result should be novel and useful while maintaining coherence with both source prompts.
+    You will receive two prompts. First, analyze if these prompts are:
+    1. Insights/Observations
+    2. Problem Statements
+    3. Solution Proposals
+
+    Then, generate a new text that:
+    - Maintains the same type/framing as the input prompts
+    - Combines themes and elements from both prompts
+    - Matches the linguistic style and structure of the inputs
+    - Does NOT propose solutions unless the original prompts were solution-focused
     """
+    
+    client = openai.OpenAI()
     
     for attempt in range(retries):
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -106,11 +116,11 @@ def generate_text(prompt1, prompt2, retries=3):
                 temperature=0.7,
                 max_tokens=150
             )
-            return response.choices[0].message.content.strip()
+            return response.choices[0].message.content
             
         except openai.RateLimitError:
             if attempt < retries - 1:
-                wait_time = 2 ** attempt  # Exponential backoff
+                wait_time = 2 ** attempt
                 print(f"Rate limit reached. Waiting {wait_time} seconds...")
                 time.sleep(wait_time)
             else:
