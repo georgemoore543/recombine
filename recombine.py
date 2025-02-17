@@ -234,9 +234,9 @@ def main():
         print(f"Error reading input file: {str(e)}")
         return
     
-    # Calculate total combinations
+    # Calculate total combinations (excluding self-combinations)
     prompts = df["Prompt"].tolist()
-    total_combinations = len(prompts) ** 2
+    total_combinations = len(prompts) * (len(prompts) - 1)
     
     # Select output file
     output_file = select_file(
@@ -258,6 +258,10 @@ def main():
     try:
         for i, prompt1 in enumerate(prompts):
             for j, prompt2 in enumerate(prompts):
+                # Skip if prompts are identical (same index)
+                if i == j:
+                    continue
+                    
                 try:
                     result = generate_text(
                         prompt1, 
