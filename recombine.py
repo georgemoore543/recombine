@@ -63,6 +63,60 @@ class ProgressWindow:
     def close(self):
         self.root.destroy()
 
+class PromptTypeSelector:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Select Prompt Type")
+        self.selected_type = None
+        
+        # Window size and position
+        window_width = 300
+        window_height = 200
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # Label
+        label = tk.Label(self.root, text="Select the type of prompts:", pady=10)
+        label.pack()
+        
+        # Buttons
+        options = [
+            "Auto-detect",
+            "Insights/Observations",
+            "Problem Statements",
+            "Solution Proposals"
+        ]
+        
+        for option in options:
+            btn = tk.Button(
+                self.root,
+                text=option,
+                width=20,
+                command=lambda o=option: self.select_type(o)
+            )
+            btn.pack(pady=5)
+        
+        # Cancel button
+        cancel_btn = tk.Button(
+            self.root,
+            text="Cancel",
+            width=20,
+            command=lambda: self.select_type(None)
+        )
+        cancel_btn.pack(pady=10)
+        
+    def select_type(self, type_value):
+        self.selected_type = type_value
+        self.root.quit()
+        
+    def get_selection(self):
+        self.root.mainloop()
+        self.root.destroy()
+        return self.selected_type
+
 def select_file(title, file_types, save=False):
     """Open a file dialog to select a file."""
     root = Tk()
@@ -88,7 +142,7 @@ def select_file(title, file_types, save=False):
     finally:
         root.destroy()
 
-def generate_text(prompt1, prompt2, retries=3):
+def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, forced_type=None, retries=3):
     """Generate new text using OpenAI API by combining two prompts."""
     system_prompt = """
     You will receive two prompts. First, analyze if these prompts are:
@@ -97,11 +151,24 @@ def generate_text(prompt1, prompt2, retries=3):
     3. Solution Proposals
 
     Then, generate a new text that:
-    - Maintains the same type/framing as the input prompts
+    - Maintains the same type/framing as the first prompt
     - Combines themes and elements from both prompts
     - Matches the linguistic style and structure of the inputs
-    - Does NOT propose solutions unless the original prompts were solution-focused
+    - Returns ONLY the new generated text without any analysis or explanation
     """
+    
+    if forced_type:
+        system_prompt = f"""
+        You will receive two prompts. The user has specified these are {forced_type.lower()}.
+        Generate a new text that:
+        - MUST be framed strictly as a {forced_type.lower()} like the input prompts
+        - Combines themes and elements from both prompts
+        - Matches the linguistic style and structure of the inputs
+        - If these are Problem Statements, do NOT include solutions
+        - If these are Insights, focus on observations without solutions
+        - If these are Solution Proposals, focus on actionable solutions
+        - Returns ONLY the new generated text without any analysis or explanation
+        """
     
     client = openai.OpenAI()
     
@@ -116,7 +183,10 @@ def generate_text(prompt1, prompt2, retries=3):
                 temperature=0.7,
                 max_tokens=150
             )
-            return response.choices[0].message.content
+            return {
+                'text': response.choices[0].message.content.strip(),
+                'source_ids': f"{prompt_id1},{prompt_id2}"
+            }
             
         except openai.RateLimitError:
             if attempt < retries - 1:
@@ -137,6 +207,13 @@ def main():
     if not os.getenv('OPENAI_API_KEY'):
         print("Error: OPENAI_API_KEY not found in .env file")
         sys.exit(1)
+    
+    # Get prompt type selection
+    selector = PromptTypeSelector()
+    prompt_type = selector.get_selection()
+    if prompt_type is None:
+        print("Operation cancelled. Exiting...")
+        return
     
     # Select input file
     input_file = select_file(
@@ -182,22 +259,48 @@ def main():
         for i, prompt1 in enumerate(prompts):
             for j, prompt2 in enumerate(prompts):
                 try:
-                    new_text = generate_text(prompt1, prompt2)
-                    new_texts.append(new_text)
+                    result = generate_text(
+                        prompt1, 
+                        prompt2, 
+                        i+1, 
+                        j+1, 
+                        forced_type=None if prompt_type == "Auto-detect" else prompt_type
+                    )
+                    new_texts.append(result)
                     counter += 1
                     progress_window.update(counter)
                 except Exception as e:
                     print(f"Error generating text for prompts {i+1} and {j+1}: {str(e)}")
-                    new_texts.append(f"Error: {str(e)}")
+                    new_texts.append({
+                        'text': f"Error: {str(e)}",
+                        'source_ids': f"{i+1},{j+1}"
+                    })
     
         # Create output dataframe
         output_df = pd.DataFrame({
             "#": range(1, len(new_texts) + 1),
-            "Prompt": new_texts
+            "Source IDs": [item['source_ids'] for item in new_texts],
+            "Prompt Type": prompt_type if prompt_type != "Auto-detect" else "Multiple",
+            "Prompt": [item['text'] for item in new_texts]
         })
         
-        # Save to Excel
-        output_df.to_excel(output_file, index=False)
+        # Ensure proper column order and formatting
+        output_df = output_df[[
+            "#",
+            "Source IDs",
+            "Prompt Type",
+            "Prompt"
+        ]]
+        
+        # Save to Excel with adjusted column widths
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+            output_df.to_excel(writer, index=False)
+            worksheet = writer.sheets['Sheet1']
+            worksheet.column_dimensions['A'].width = 5  # #
+            worksheet.column_dimensions['B'].width = 15  # Source IDs
+            worksheet.column_dimensions['C'].width = 20  # Prompt Type
+            worksheet.column_dimensions['D'].width = 50  # Prompt
+        
         print(f"\nGeneration complete! Output saved to: {output_file}")
     
     except Exception as e:
