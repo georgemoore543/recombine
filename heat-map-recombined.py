@@ -51,8 +51,12 @@ def create_heatmap():
     # Create heatmap
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
+    
+    # Determine whether to show annotations based on matrix size
+    show_annotations = max_x <= 10 and max_y <= 10
+    
     sns.heatmap(heatmap_matrix, 
-                annot=True,  # Show values in cells
+                annot=heatmap_matrix if show_annotations else False,  # Pass the matrix itself for annotations
                 fmt='.2f',   # Format to 2 decimal places
                 cmap='YlOrRd',  # Yellow to Orange to Red color scheme
                 cbar_kws={'label': 'Average Rating'},
