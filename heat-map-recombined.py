@@ -26,14 +26,19 @@ def create_heatmap():
         df = pd.read_excel(file_path)
 
     # Extract source IDs and split into x,y coordinates
-    source_ids = df['Source ID'].str.split(',', expand=True).astype(int)
+    source_ids = df['Source IDs'].str.split(',', expand=True).astype(int)
     max_x = source_ids[0].max()
     max_y = source_ids[1].max()
 
-    # Calculate average ratings across all numeric columns
-    # Assuming all rating columns are numeric and non-numeric columns are at the start
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    avg_ratings = df[numeric_cols].mean(axis=1)
+    # Identify rating columns by looking for "Rating" in the column name
+    rating_cols = [col for col in df.columns if 'Rating' in col]
+    
+    if not rating_cols:
+        print("No rating columns found. Please ensure column headers contain 'Rating'")
+        return
+
+    # Calculate average ratings using only the rating columns
+    avg_ratings = df[rating_cols].mean(axis=1)
 
     # Create empty matrix filled with NaN
     heatmap_matrix = np.full((max_x, max_y), np.nan)
@@ -45,16 +50,23 @@ def create_heatmap():
 
     # Create heatmap
     plt.figure(figsize=(10, 8))
+    ax = plt.gca()
     sns.heatmap(heatmap_matrix, 
                 annot=True,  # Show values in cells
                 fmt='.2f',   # Format to 2 decimal places
                 cmap='YlOrRd',  # Yellow to Orange to Red color scheme
-                cbar_kws={'label': 'Average Rating'})
+                cbar_kws={'label': 'Average Rating'},
+                xticklabels=range(1, max_y + 1),
+                yticklabels=range(1, max_x + 1))
 
-    # Set labels
-    plt.xlabel('Source Prompt ID')
-    plt.ylabel('Source Prompt ID')
-    plt.title('Average Ratings Heatmap')
+    # Move x-axis to top
+    ax.xaxis.set_ticks_position('top')
+    ax.xaxis.set_label_position('top')
+    
+    # Set labels with new descriptions
+    plt.xlabel('2nd Source ID')
+    plt.ylabel('1st Source ID')
+    plt.title('Average Ratings Heatmap', pad=20)  # Add padding to prevent overlap with label
 
     # Show plot
     plt.tight_layout()
