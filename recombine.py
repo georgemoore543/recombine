@@ -14,7 +14,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from tkinter import Tk, filedialog
+from tkinter import Tk, filedialog, messagebox
 from tkinter.ttk import Progressbar
 import tkinter as tk
 import pandas as pd
@@ -63,15 +63,15 @@ class ProgressWindow:
     def close(self):
         self.root.destroy()
 
-class PromptTypeSelector:
+class GoalSelector:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Select Prompt Type")
-        self.selected_type = None
+        self.root.title("Set Generation Goal")
+        self.goal = None
         
         # Window size and position
-        window_width = 300
-        window_height = 200
+        window_width = 500
+        window_height = 250
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = (screen_width - window_width) // 2
@@ -79,43 +79,172 @@ class PromptTypeSelector:
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         
         # Label
-        label = tk.Label(self.root, text="Select the type of prompts:", pady=10)
+        label = tk.Label(
+            self.root,
+            text="Enter the goal for combining prompts\n(What should the generated text aim to achieve?):",
+            pady=10
+        )
         label.pack()
         
-        # Buttons
-        options = [
-            "Auto-detect",
-            "Insights/Observations",
-            "Problem Statements",
-            "Solution Proposals"
-        ]
+        # Default goal text
+        default_goal = "to provide a new prompt that is novel, insightful, and actionable"
         
-        for option in options:
-            btn = tk.Button(
-                self.root,
-                text=option,
-                width=20,
-                command=lambda o=option: self.select_type(o)
-            )
-            btn.pack(pady=5)
+        # Text input
+        self.text_input = tk.Text(self.root, height=4, width=50)
+        self.text_input.insert("1.0", default_goal)
+        self.text_input.pack(pady=10, padx=20)
+        
+        # Character counter
+        char_counter = tk.Label(self.root, text=f"{len(default_goal)}/500 characters")
+        char_counter.pack()
+        
+        def update_counter(event=None):
+            current = len(self.text_input.get("1.0", tk.END).strip())
+            char_counter.config(text=f"{current}/500 characters")
+            
+        self.text_input.bind("<KeyRelease>", update_counter)
+        
+        # Buttons frame
+        button_frame = tk.Frame(self.root)
+        button_frame.pack(pady=20)
+        
+        # Submit button
+        submit_btn = tk.Button(
+            button_frame,
+            text="Submit",
+            width=10,
+            command=self.validate_and_submit
+        )
+        submit_btn.pack(side=tk.LEFT, padx=10)
         
         # Cancel button
         cancel_btn = tk.Button(
-            self.root,
+            button_frame,
             text="Cancel",
-            width=20,
-            command=lambda: self.select_type(None)
+            width=10,
+            command=lambda: self.finish(None)
         )
-        cancel_btn.pack(pady=10)
+        cancel_btn.pack(side=tk.LEFT, padx=10)
         
-    def select_type(self, type_value):
-        self.selected_type = type_value
+    def validate_and_submit(self):
+        text = self.text_input.get("1.0", tk.END).strip()
+        if len(text) > 500:
+            tk.messagebox.showerror(
+                "Error",
+                "Goal text must be 500 characters or less."
+            )
+            return
+        if not text:
+            tk.messagebox.showerror(
+                "Error",
+                "Goal text cannot be empty."
+            )
+            return
+        self.finish(text)
+        
+    def finish(self, goal):
+        self.goal = goal
         self.root.quit()
         
-    def get_selection(self):
+    def get_goal(self):
         self.root.mainloop()
         self.root.destroy()
-        return self.selected_type
+        return self.goal
+
+class ContextSelector:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Add Context")
+        self.context = None
+        
+        # Window size and position
+        window_width = 400
+        window_height = 150
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # Label
+        label = tk.Label(self.root, text="Would you like to add context for the LLM\nto guide the output generation?", pady=10)
+        label.pack()
+        
+        # Buttons frame
+        button_frame = tk.Frame(self.root)
+        button_frame.pack(pady=20)
+        
+        # Yes/No buttons
+        yes_btn = tk.Button(
+            button_frame,
+            text="Yes",
+            width=10,
+            command=self.show_context_input
+        )
+        yes_btn.pack(side=tk.LEFT, padx=10)
+        
+        no_btn = tk.Button(
+            button_frame,
+            text="No",
+            width=10,
+            command=lambda: self.finish(None)
+        )
+        no_btn.pack(side=tk.LEFT, padx=10)
+        
+    def show_context_input(self):
+        # Clear current window contents
+        for widget in self.root.winfo_children():
+            widget.destroy()
+            
+        # Add new input elements
+        label = tk.Label(
+            self.root,
+            text="Enter structure and format instructions for the LLM (max 2000 characters):",
+            pady=10
+        )
+        label.pack()
+        
+        # Text input
+        text_input = tk.Text(self.root, height=4, width=40)
+        text_input.pack(pady=10, padx=20)
+        
+        # Character counter
+        char_counter = tk.Label(self.root, text="0/2000 characters")
+        char_counter.pack()
+        
+        def update_counter(event=None):
+            current = len(text_input.get("1.0", tk.END).strip())
+            char_counter.config(text=f"{current}/2000 characters")
+            
+        text_input.bind("<KeyRelease>", update_counter)
+        
+        # Submit button
+        submit_btn = tk.Button(
+            self.root,
+            text="Submit",
+            width=10,
+            command=lambda: self.validate_and_submit(text_input.get("1.0", tk.END))
+        )
+        submit_btn.pack(pady=10)
+        
+    def validate_and_submit(self, text):
+        text = text.strip()
+        if len(text) > 2000:
+            tk.messagebox.showerror(
+                "Error",
+                "Context must be 2000 characters or less."
+            )
+            return
+        self.finish(text)
+        
+    def finish(self, context):
+        self.context = context
+        self.root.quit()
+        
+    def get_context(self):
+        self.root.mainloop()
+        self.root.destroy()
+        return self.context
 
 def select_file(title, file_types, save=False):
     """Open a file dialog to select a file."""
@@ -142,34 +271,25 @@ def select_file(title, file_types, save=False):
     finally:
         root.destroy()
 
-def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, forced_type=None, retries=3):
+def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, user_context=None, generation_goal=None, retries=3):
     """Generate new text using OpenAI API by combining two prompts."""
-    system_prompt = """
-    You will receive two prompts. First, analyze if these prompts are:
-    1. Insights/Observations
-    2. Problem Statements
-    3. Solution Proposals
-
-    Then, generate a new text that:
-    - Maintains the same type/framing as the first prompt
-    - Combines themes and elements from both prompts
+    goal = generation_goal or "to provide a new prompt that is novel, insightful, and actionable"
+    
+    base_system_prompt = f"""
+    You will receive two prompts. Generate a new text that:
+    - Combines themes and elements from both prompts 
+    - Satisfies the following goal or goals: {goal}
     - Matches the linguistic style and structure of the inputs
-    - Do NOT include prefixes like "Problem Statement:", "Insight:", or "Solution:"
-    - Returns ONLY the new generated text without any analysis or explanation
     """
     
-    if forced_type:
+    # Add user context if provided
+    system_prompt = base_system_prompt
+    if user_context:
         system_prompt = f"""
-        You will receive two prompts. The user has specified these are {forced_type.lower()}.
-        Generate a new text that:
-        - MUST be framed strictly as a {forced_type.lower()} like the input prompts
-        - Combines themes and elements from both prompts
-        - Matches the linguistic style and structure of the inputs
-        - Do NOT include prefixes like "Problem Statement:", "Insight:", or "Solution:"
-        - If these are Problem Statements, do NOT include solutions
-        - If these are Insights, focus on observations without solutions
-        - If these are Solution Proposals, focus on actionable solutions
-        - Returns ONLY the new generated text without any analysis or explanation
+        {base_system_prompt}
+        
+        This additional context from the User offers instructions for the structure and format of the output:
+        {user_context}
         """
     
     client = openai.OpenAI()
@@ -183,7 +303,7 @@ def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, forced_type=None, re
                     {"role": "user", "content": f"Prompt 1: {prompt1}\nPrompt 2: {prompt2}"}
                 ],
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=5000
             )
             return {
                 'text': response.choices[0].message.content.strip(),
@@ -210,12 +330,16 @@ def main():
         print("Error: OPENAI_API_KEY not found in .env file")
         sys.exit(1)
     
-    # Get prompt type selection
-    selector = PromptTypeSelector()
-    prompt_type = selector.get_selection()
-    if prompt_type is None:
+    # Get generation goal
+    goal_selector = GoalSelector()
+    generation_goal = goal_selector.get_goal()
+    if generation_goal is None:
         print("Operation cancelled. Exiting...")
         return
+    
+    # Get user context
+    context_selector = ContextSelector()
+    user_context = context_selector.get_context()
     
     # Select input file
     input_file = select_file(
@@ -236,9 +360,10 @@ def main():
         print(f"Error reading input file: {str(e)}")
         return
     
-    # Calculate total combinations (excluding self-combinations)
+    # Calculate total combinations (excluding self-combinations and duplicates)
     prompts = df["Prompt"].tolist()
-    total_combinations = len(prompts) * (len(prompts) - 1)
+    n = len(prompts)
+    total_combinations = (n * (n - 1)) // 2  # Formula for combinations without repetition
     
     # Select output file
     output_file = select_file(
@@ -259,18 +384,17 @@ def main():
     
     try:
         for i, prompt1 in enumerate(prompts):
-            for j, prompt2 in enumerate(prompts):
-                # Skip if prompts are identical (same index)
-                if i == j:
-                    continue
-                    
+            # Start j from i+1 to only get each pair once
+            for j in range(i + 1, len(prompts)):
+                prompt2 = prompts[j]
                 try:
                     result = generate_text(
                         prompt1, 
                         prompt2, 
                         i+1, 
                         j+1, 
-                        forced_type=None if prompt_type == "Auto-detect" else prompt_type
+                        user_context=user_context,
+                        generation_goal=generation_goal
                     )
                     new_texts.append(result)
                     counter += 1
@@ -286,7 +410,6 @@ def main():
         output_df = pd.DataFrame({
             "#": range(1, len(new_texts) + 1),
             "Source IDs": [item['source_ids'] for item in new_texts],
-            "Prompt Type": prompt_type if prompt_type != "Auto-detect" else "Multiple",
             "Prompt": [item['text'] for item in new_texts]
         })
         
@@ -294,7 +417,6 @@ def main():
         output_df = output_df[[
             "#",
             "Source IDs",
-            "Prompt Type",
             "Prompt"
         ]]
         
@@ -304,8 +426,7 @@ def main():
             worksheet = writer.sheets['Sheet1']
             worksheet.column_dimensions['A'].width = 5  # #
             worksheet.column_dimensions['B'].width = 15  # Source IDs
-            worksheet.column_dimensions['C'].width = 20  # Prompt Type
-            worksheet.column_dimensions['D'].width = 50  # Prompt
+            worksheet.column_dimensions['C'].width = 50  # Prompt
         
         print(f"\nGeneration complete! Output saved to: {output_file}")
     
