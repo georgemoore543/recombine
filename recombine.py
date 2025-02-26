@@ -21,6 +21,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import openai
 from tqdm import tqdm
+import random
 
 # Load environment variables
 load_dotenv()
@@ -246,6 +247,64 @@ class ContextSelector:
         self.root.destroy()
         return self.context
 
+class PromptLimitSelector:
+    def __init__(self, total_prompts):
+        self.root = tk.Tk()
+        self.root.title("Prompt Count Selection")
+        self.choice = None
+        self.total_prompts = total_prompts
+        
+        # Window size and position
+        window_width = 400
+        window_height = 200
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # Message
+        total_combinations = (total_prompts * (total_prompts - 1)) // 2
+        message = f"""Your dataset contains {total_prompts} prompts, which will generate
+{total_combinations} combinations.
+
+Would you like to:
+- Analyze all {total_prompts} prompts
+- Use only 5 random prompts (10 combinations)"""
+        
+        label = tk.Label(self.root, text=message, pady=20)
+        label.pack()
+        
+        # Buttons frame
+        button_frame = tk.Frame(self.root)
+        button_frame.pack(pady=20)
+        
+        # Buttons
+        all_btn = tk.Button(
+            button_frame,
+            text=f"Use all {total_prompts}",
+            width=15,
+            command=lambda: self.finish(False)
+        )
+        all_btn.pack(side=tk.LEFT, padx=10)
+        
+        limit_btn = tk.Button(
+            button_frame,
+            text="Use 5 random",
+            width=15,
+            command=lambda: self.finish(True)
+        )
+        limit_btn.pack(side=tk.LEFT, padx=10)
+        
+    def finish(self, limit_to_five):
+        self.choice = limit_to_five
+        self.root.quit()
+        
+    def get_choice(self):
+        self.root.mainloop()
+        self.root.destroy()
+        return self.choice
+
 def select_file(title, file_types, save=False):
     """Open a file dialog to select a file."""
     root = Tk()
@@ -360,10 +419,32 @@ def main():
         print(f"Error reading input file: {str(e)}")
         return
     
-    # Calculate total combinations (excluding self-combinations and duplicates)
-    prompts = df["Prompt"].tolist()
+    # Get all prompts
+    all_prompts = df["Prompt"].tolist()
+    n = len(all_prompts)
+    
+    # If more than 5 prompts, ask user if they want to limit
+    if n > 5:
+        limit_selector = PromptLimitSelector(n)
+        limit_to_five = limit_selector.get_choice()
+        if limit_to_five is None:
+            print("Operation cancelled. Exiting...")
+            return
+        
+        if limit_to_five:
+            # Randomly select 5 prompts
+            prompts = random.sample(all_prompts, 5)
+            # Store the selected indices for reference
+            selected_indices = [all_prompts.index(p) + 1 for p in prompts]
+            print(f"\nRandomly selected prompts {selected_indices} for analysis")
+        else:
+            prompts = all_prompts
+    else:
+        prompts = all_prompts
+    
+    # Calculate total combinations
     n = len(prompts)
-    total_combinations = (n * (n - 1)) // 2  # Formula for combinations without repetition
+    total_combinations = (n * (n - 1)) // 2
     
     # Select output file
     output_file = select_file(
@@ -384,15 +465,20 @@ def main():
     
     try:
         for i, prompt1 in enumerate(prompts):
+            # Get original index if using limited prompts
+            orig_index1 = all_prompts.index(prompt1) + 1
+            
             # Start j from i+1 to only get each pair once
             for j in range(i + 1, len(prompts)):
                 prompt2 = prompts[j]
+                orig_index2 = all_prompts.index(prompt2) + 1
+                
                 try:
                     result = generate_text(
                         prompt1, 
                         prompt2, 
-                        i+1, 
-                        j+1, 
+                        orig_index1,
+                        orig_index2,
                         user_context=user_context,
                         generation_goal=generation_goal
                     )
@@ -400,10 +486,10 @@ def main():
                     counter += 1
                     progress_window.update(counter)
                 except Exception as e:
-                    print(f"Error generating text for prompts {i+1} and {j+1}: {str(e)}")
+                    print(f"Error generating text for prompts {orig_index1} and {orig_index2}: {str(e)}")
                     new_texts.append({
                         'text': f"Error: {str(e)}",
-                        'source_ids': f"{i+1},{j+1}"
+                        'source_ids': f"{orig_index1},{orig_index2}"
                     })
     
         # Create output dataframe
