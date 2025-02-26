@@ -247,16 +247,139 @@ class ContextSelector:
         self.root.destroy()
         return self.context
 
+class ManualPromptSelector:
+    def __init__(self, all_prompts):
+        self.root = tk.Tk()
+        self.root.title("Manual Prompt Selection")
+        self.selected_indices = None
+        self.all_prompts = all_prompts
+        
+        # Window size and position
+        window_width = 600
+        window_height = 400
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # Instructions
+        instructions = """Enter the ID numbers of the prompts you want to combine (comma-separated).
+Example: 1,3,5,7
+Note: IDs must be between 1 and {}""".format(len(all_prompts))
+        
+        label = tk.Label(self.root, text=instructions, pady=20)
+        label.pack()
+        
+        # Display available prompts
+        prompts_frame = tk.Frame(self.root)
+        prompts_frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
+        
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(prompts_frame)
+        scrollbar = tk.Scrollbar(prompts_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # List all prompts with their IDs
+        for i, prompt in enumerate(all_prompts, 1):
+            preview = prompt[:100] + "..." if len(prompt) > 100 else prompt
+            tk.Label(scrollable_frame, text=f"ID {i}: {preview}", anchor="w", justify=tk.LEFT).pack(pady=2)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Input field
+        self.entry = tk.Entry(self.root, width=40)
+        self.entry.pack(pady=10)
+        
+        # Buttons frame
+        button_frame = tk.Frame(self.root)
+        button_frame.pack(pady=20)
+        
+        # Submit button
+        submit_btn = tk.Button(
+            button_frame,
+            text="Submit",
+            width=10,
+            command=self.validate_and_submit
+        )
+        submit_btn.pack(side=tk.LEFT, padx=10)
+        
+        # Cancel button
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Cancel",
+            width=10,
+            command=lambda: self.finish(None)
+        )
+        cancel_btn.pack(side=tk.LEFT, padx=10)
+        
+    def validate_and_submit(self):
+        try:
+            # Get and validate indices
+            indices = [int(x.strip()) for x in self.entry.get().split(',')]
+            max_id = len(self.all_prompts)
+            
+            # Check if all indices are valid
+            if not all(1 <= x <= max_id for x in indices):
+                tk.messagebox.showerror(
+                    "Error",
+                    f"All IDs must be between 1 and {max_id}"
+                )
+                return
+                
+            # Check if there are at least 2 indices
+            if len(indices) < 2:
+                tk.messagebox.showerror(
+                    "Error",
+                    "Please select at least 2 prompts"
+                )
+                return
+                
+            # Check for duplicates
+            if len(indices) != len(set(indices)):
+                tk.messagebox.showerror(
+                    "Error",
+                    "Please do not use duplicate IDs"
+                )
+                return
+                
+            self.finish(indices)
+            
+        except ValueError:
+            tk.messagebox.showerror(
+                "Error",
+                "Please enter valid numbers separated by commas"
+            )
+            
+    def finish(self, indices):
+        self.selected_indices = indices
+        self.root.quit()
+        
+    def get_selection(self):
+        self.root.mainloop()
+        self.root.destroy()
+        return self.selected_indices
+
 class PromptLimitSelector:
     def __init__(self, total_prompts):
         self.root = tk.Tk()
-        self.root.title("Prompt Count Selection")
+        self.root.title("Prompt Selection Method")
         self.choice = None
         self.total_prompts = total_prompts
         
         # Window size and position
         window_width = 400
-        window_height = 200
+        window_height = 250
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = (screen_width - window_width) // 2
@@ -268,9 +391,7 @@ class PromptLimitSelector:
         message = f"""Your dataset contains {total_prompts} prompts, which will generate
 {total_combinations} combinations.
 
-Would you like to:
-- Analyze all {total_prompts} prompts
-- Use only 5 random prompts (10 combinations)"""
+Please choose how you want to select prompts:"""
         
         label = tk.Label(self.root, text=message, pady=20)
         label.pack()
@@ -283,21 +404,29 @@ Would you like to:
         all_btn = tk.Button(
             button_frame,
             text=f"Use all {total_prompts}",
-            width=15,
-            command=lambda: self.finish(False)
+            width=20,
+            command=lambda: self.finish("all")
         )
-        all_btn.pack(side=tk.LEFT, padx=10)
+        all_btn.pack(pady=5)
         
-        limit_btn = tk.Button(
+        random_btn = tk.Button(
             button_frame,
             text="Use 5 random",
-            width=15,
-            command=lambda: self.finish(True)
+            width=20,
+            command=lambda: self.finish("random")
         )
-        limit_btn.pack(side=tk.LEFT, padx=10)
+        random_btn.pack(pady=5)
         
-    def finish(self, limit_to_five):
-        self.choice = limit_to_five
+        manual_btn = tk.Button(
+            button_frame,
+            text="Select prompts manually",
+            width=20,
+            command=lambda: self.finish("manual")
+        )
+        manual_btn.pack(pady=5)
+        
+    def finish(self, choice):
+        self.choice = choice
         self.root.quit()
         
     def get_choice(self):
@@ -423,21 +552,30 @@ def main():
     all_prompts = df["Prompt"].tolist()
     n = len(all_prompts)
     
-    # If more than 5 prompts, ask user if they want to limit
+    # If more than 5 prompts, ask user for selection method
     if n > 5:
         limit_selector = PromptLimitSelector(n)
-        limit_to_five = limit_selector.get_choice()
-        if limit_to_five is None:
+        selection_method = limit_selector.get_choice()
+        if selection_method is None:
             print("Operation cancelled. Exiting...")
             return
         
-        if limit_to_five:
+        if selection_method == "random":
             # Randomly select 5 prompts
             prompts = random.sample(all_prompts, 5)
             # Store the selected indices for reference
             selected_indices = [all_prompts.index(p) + 1 for p in prompts]
             print(f"\nRandomly selected prompts {selected_indices} for analysis")
-        else:
+        elif selection_method == "manual":
+            # Let user manually select prompts
+            manual_selector = ManualPromptSelector(all_prompts)
+            selected_indices = manual_selector.get_selection()
+            if selected_indices is None:
+                print("Operation cancelled. Exiting...")
+                return
+            prompts = [all_prompts[i-1] for i in selected_indices]
+            print(f"\nManually selected prompts {selected_indices} for analysis")
+        else:  # "all"
             prompts = all_prompts
     else:
         prompts = all_prompts
