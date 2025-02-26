@@ -297,13 +297,13 @@ def generate_text(prompt1, prompt2, prompt_id1, prompt_id2, user_context=None, g
     for attempt in range(retries):
         try:
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo-16k",
+                model="gpt-4-turbo-preview",  # Using GPT-4 Turbo with 128k context window
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Prompt 1: {prompt1}\nPrompt 2: {prompt2}"}
                 ],
                 temperature=0.7,
-                max_tokens=5000
+                max_tokens=4096  # Keeping larger max_tokens since we have the context space
             )
             return {
                 'text': response.choices[0].message.content.strip(),
