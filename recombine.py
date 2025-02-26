@@ -200,7 +200,7 @@ class ContextSelector:
         # Add new input elements
         label = tk.Label(
             self.root,
-            text="Enter structure and format instructions for the LLM (max 2000 characters):",
+            text="Enter structure and format instructions for the LLM (max 3000 characters):",
             pady=10
         )
         label.pack()
@@ -210,12 +210,12 @@ class ContextSelector:
         text_input.pack(pady=10, padx=20)
         
         # Character counter
-        char_counter = tk.Label(self.root, text="0/2000 characters")
+        char_counter = tk.Label(self.root, text="0/3000 characters")
         char_counter.pack()
         
         def update_counter(event=None):
             current = len(text_input.get("1.0", tk.END).strip())
-            char_counter.config(text=f"{current}/2000 characters")
+            char_counter.config(text=f"{current}/3000 characters")
             
         text_input.bind("<KeyRelease>", update_counter)
         
@@ -230,10 +230,10 @@ class ContextSelector:
         
     def validate_and_submit(self, text):
         text = text.strip()
-        if len(text) > 2000:
+        if len(text) > 3000:
             tk.messagebox.showerror(
                 "Error",
-                "Context must be 2000 characters or less."
+                "Context must be 3000 characters or less."
             )
             return
         self.finish(text)
